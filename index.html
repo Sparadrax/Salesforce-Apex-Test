@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:*; img-src 'self' data:"
+    />
+    <title>Salesforce Apex Test</title>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">A</span
+        ><span>Salesforce <strong>Apex Test</strong></span>
+      </div>
+      <span class="local-badge"
+        ><span aria-hidden="true"></span> Local workspace</span
+      >
+    </header>
+    <main>
+      <p id="startup-error" class="notice error" role="alert" hidden></p>
+      <section id="org-screen" hidden>
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          Workspace <span aria-hidden="true">/</span
+          ><strong>Organizations</strong>
+        </nav>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">YOUR WORKSPACE</p>
+            <h1>Salesforce organizations</h1>
+            <p class="page-description">
+              Choose an organization to open its test results in a new window.
+            </p>
+          </div>
+          <button id="add-org-button" class="button primary" type="button">
+            ＋ Add organization
+          </button>
+        </div>
+        <p id="notice" class="notice" role="status" hidden></p>
+        <section
+          class="org-panel"
+          id="org-panel"
+          aria-labelledby="org-heading"
+          aria-busy="true"
+        >
+          <div class="panel-heading">
+            <h2 id="org-heading">
+              Your organizations <span id="org-count" class="count">0</span>
+            </h2>
+            <button id="refresh-button" class="button subtle" type="button">
+              Refresh
+            </button>
+          </div>
+          <div id="loading" class="loading" role="status">
+            Loading your organizations…
+          </div>
+          <div id="empty-state" class="empty-state" hidden>
+            <div class="empty-icon" aria-hidden="true">☁</div>
+            <h3>Add your first organization</h3>
+            <p>
+              Enter its Salesforce org ID and hostname. Open the organization to
+              import deployment test results.
+            </p>
+            <button id="empty-add-org" class="button primary" type="button">
+              Add organization
+            </button>
+          </div>
+          <div id="org-table-container" class="table-scroll" hidden>
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Organization</th>
+                  <th scope="col">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="org-list"></tbody>
+            </table>
+          </div>
+
+          <p hidden class="table-empty" id="org-scroll-empty"></p>
+        </section>
+        <aside class="import-help">
+          <span class="help-icon" aria-hidden="true">↗</span>
+          <div>
+            <h2>Open more than one window</h2>
+            <p>
+              Open the same organization again to compare runs side by side.
+              Each window keeps its own selected run and import preview.
+            </p>
+          </div>
+        </aside>
+      </section>
+      <section id="run-screen" hidden>
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          Organization <span aria-hidden="true">/</span
+          ><strong>Test results</strong>
+        </nav>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">DEPLOYMENT TEST RESULTS</p>
+            <h1 id="org-window-title">Organization</h1>
+            <p id="org-window-id" class="page-description"></p>
+          </div>
+          <button
+            id="import-button"
+            class="button primary"
+            type="button"
+            disabled
+          >
+            ＋ Import JSON
+          </button>
+        </div>
+        <p id="run-notice" class="notice" role="alert" hidden></p>
+        <div id="run-loading" class="loading" role="status">
+          Loading test runs…
+        </div>
+        <section id="no-runs" class="org-panel empty-state" hidden>
+          <div class="empty-icon" aria-hidden="true">{ }</div>
+          <h3>No test runs yet</h3>
+          <p>
+            Import a Salesforce deployment test-result JSON file for this
+            organization.
+          </p>
+          <button id="empty-import-button" class="button primary" type="button">
+            Import your first JSON
+          </button>
+        </section>
+        <section id="run-content" hidden>
+          <div class="run-toolbar">
+            <label
+              >Test run<select
+                id="run-select"
+                aria-label="Select a test run"
+              ></select></label
+            ><button
+              id="latest-run-button"
+              class="button secondary"
+              type="button"
+            >
+              Latest run
+            </button>
+          </div>
+          <div class="run-identity">
+            <div>
+              <strong id="run-date"></strong
+              ><span id="run-id" class="org-id"></span>
+            </div>
+            <div class="run-overview">
+              <span id="run-status"></span><small id="run-count"></small>
+            </div>
+          </div>
+          <div class="coverage-explorer">
+            <section
+              class="org-panel result-panel drilldown-panel"
+              id="classes-panel"
+              aria-labelledby="classes-heading"
+            >
+              <div class="panel-heading">
+                <div>
+                  <h2 id="classes-heading">1. Apex classes</h2>
+                  <p id="classes-context" class="drilldown-context">
+                    Select a class to explore · Right-click for coverage history
+                  </p>
+                </div>
+              </div>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">Apex class</th>
+                      <th scope="col">Coverage</th>
+                    </tr>
+                  </thead>
+                  <tbody id="classes-body"></tbody>
+                </table>
+              </div>
+              <p id="classes-empty" class="table-empty" role="status">
+                Choose a run to see Apex classes.
+              </p>
+            </section>
+            <section
+              class="org-panel result-panel drilldown-panel"
+              id="test-classes-panel"
+              aria-labelledby="test-classes-heading"
+            >
+              <div class="panel-heading">
+                <div>
+                  <h2 id="test-classes-heading">2. Test classes</h2>
+                  <p id="test-classes-context" class="drilldown-context">
+                    Select an Apex class
+                  </p>
+                </div>
+              </div>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">Test class</th>
+                      <th scope="col">Coverage</th>
+                    </tr>
+                  </thead>
+                  <tbody id="test-classes-body"></tbody>
+                </table>
+              </div>
+              <p id="test-classes-empty" class="table-empty" role="status">
+                Select an Apex class to see the test classes that cover it.
+              </p>
+            </section>
+            <section
+              class="org-panel result-panel drilldown-panel"
+              id="methods-panel"
+              aria-labelledby="methods-heading"
+            >
+              <div class="panel-heading">
+                <div>
+                  <h2 id="methods-heading">3. Test methods</h2>
+                  <p id="methods-context" class="drilldown-context">
+                    Select a test class
+                  </p>
+                </div>
+              </div>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">Test method</th>
+                      <th scope="col">Outcome</th>
+                      <th scope="col">Coverage</th>
+                    </tr>
+                  </thead>
+                  <tbody id="methods-body"></tbody>
+                </table>
+              </div>
+              <p id="methods-empty" class="table-empty" role="status">
+                Select a test class to see its methods and outcomes.
+              </p>
+            </section>
+          </div>
+          <p class="coverage-note">
+            Coverage shown for a test class or method is its coverage of the
+            selected Apex class. A dash means coverage was not supplied.
+          </p>
+        </section>
+      </section>
+      <section id="history-screen" hidden>
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          Organization / Apex class / Coverage history
+        </nav>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">CLASS COVERAGE HISTORY</p>
+            <h1 id="history-class">Coverage history</h1>
+            <p id="history-org" class="page-description"></p>
+          </div>
+          <button id="history-refresh" class="button secondary" type="button">
+            Refresh
+          </button>
+        </div>
+        <form id="history-form" class="history-filters">
+          <label>From<input id="history-from" type="date" required /></label>
+          <label
+            >Through<input id="history-through" type="date" required
+          /></label>
+          <button id="history-apply" class="button primary" type="submit">
+            Apply range
+          </button>
+          <div
+            id="history-presets"
+            class="history-presets"
+            aria-label="Date range presets"
+          >
+            <button class="button subtle" type="button" data-days="7">
+              7 days
+            </button>
+            <button class="button subtle" type="button" data-days="30">
+              30 days
+            </button>
+            <button class="button subtle" type="button" data-days="90">
+              90 days
+            </button>
+            <button class="button subtle" type="button" data-days="all">
+              All time
+            </button>
+          </div>
+        </form>
+        <p id="history-error" class="notice error" role="alert" hidden></p>
+        <section class="org-panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Coverage over time</h2>
+              <p id="history-range-label" class="drilldown-context"></p>
+            </div>
+            <span id="history-count" class="history-count"></span>
+          </div>
+          <p id="history-loading" class="table-empty" role="status" hidden>
+            Loading coverage history…
+          </p>
+          <div id="history-chart" class="history-chart" aria-busy="false"></div>
+        </section>
+        <p class="coverage-note">
+          Hover or focus a point for details. The dashed line marks 75%.
+          <span id="history-undated"></span>
+        </p>
+        <details class="history-data">
+          <summary>View plotted data</summary>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">Coverage</th>
+                  <th scope="col">Run / group</th>
+                </tr>
+              </thead>
+              <tbody id="history-data"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+    </main>
+    <footer class="app-footer">
+      <span>Salesforce Apex Test</span
+      ><span>Your results stay on this device.</span>
+    </footer>
+    <dialog id="add-org-dialog" aria-labelledby="add-org-title">
+      <form id="add-org-form">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">YOUR WORKSPACE</p>
+            <h2 id="add-org-title">Add an organization</h2>
+          </div>
+          <button
+            id="close-add-org"
+            class="icon-button"
+            type="button"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        <p class="dialog-description">
+          Save the org details, then open it to import your test results.
+        </p>
+        <label
+          >Salesforce org ID<input
+            id="add-org-id"
+            type="text"
+            required
+            maxlength="18"
+            pattern="00D[a-zA-Z0-9]{12}([a-zA-Z0-9]{3})?"
+            autocomplete="off"
+            placeholder="00D…"
+          /><small
+            >15 or 18 characters. Find it in Salesforce Company
+            Information.</small
+          ></label
+        >
+        <label
+          >Instance hostname<input
+            id="add-org-hostname"
+            type="text"
+            required
+            maxlength="180"
+            autocomplete="off"
+            placeholder="your-company.my.salesforce.com"
+        /></label>
+        <p id="add-org-error" class="form-error" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button id="cancel-add-org" class="button secondary" type="button">
+            Cancel</button
+          ><button id="save-org" class="button primary" type="submit">
+            Add organization
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="import-dialog" aria-labelledby="import-title">
+      <form id="import-form">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">IMPORT DEPLOYMENT</p>
+            <h2 id="import-title">Review test results</h2>
+          </div>
+          <button
+            id="close-import"
+            class="icon-button"
+            type="button"
+            aria-label="Close import"
+          >
+            ×
+          </button>
+        </div>
+        <p id="import-target" class="dialog-description"></p>
+        <div class="file-preview">
+          <span aria-hidden="true">{ }</span>
+          <div>
+            <strong id="import-file"></strong><small id="import-run"></small>
+          </div>
+        </div>
+        <dl class="import-metrics">
+          <div>
+            <dt>Classes</dt>
+            <dd id="import-class-count"></dd>
+          </div>
+          <div>
+            <dt>Tests run</dt>
+            <dd id="import-test-count"></dd>
+          </div>
+          <div>
+            <dt>Test failures</dt>
+            <dd id="import-failures"></dd>
+          </div>
+          <div>
+            <dt>Deployment</dt>
+            <dd id="import-status"></dd>
+          </div>
+        </dl>
+        <p id="import-error" class="form-error" role="alert" hidden></p>
+        <p class="import-note">
+          These results will be saved to this organization. Existing runs are
+          kept. Importing the same deployment updates its saved results.
+        </p>
+        <div class="dialog-actions">
+          <button id="cancel-import" class="button secondary" type="button">
+            Cancel</button
+          ><button id="confirm-import" class="button primary" type="submit">
+            Import results
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <script type="module" src="/src/renderer/index.ts"></script>
+  </body>
+</html>

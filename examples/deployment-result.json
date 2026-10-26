@@ -1,0 +1,35 @@
+{
+  "status": 0,
+  "result": {
+    "id": "0Af000000000001AAA",
+    "done": true,
+    "success": true,
+    "status": "Succeeded",
+    "startDate": "2026-10-26T10:00:00.000Z",
+    "details": {
+      "runTestResult": {
+        "numTestsRun": "1",
+        "numFailures": "0",
+        "totalTime": "42",
+        "successes": [
+          {
+            "id": "01p000000000002AAA",
+            "name": "AccountServiceTest",
+            "methodName": "testAccount",
+            "time": "42"
+          }
+        ],
+        "failures": [],
+        "codeCoverage": [
+          {
+            "id": "01p000000000001AAA",
+            "name": "AccountService",
+            "numLocations": "100",
+            "numLocationsNotCovered": "20",
+            "locationsNotCovered": []
+          }
+        ]
+      }
+    }
+  }
+}
