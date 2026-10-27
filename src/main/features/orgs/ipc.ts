@@ -120,8 +120,10 @@ export function registerOrgsIpc(
     (event, runId: string, afterId?: string, sort?: TableSort) =>
       database.orgCoverage(orgWindow(event).orgId, runId, afterId, sort),
   );
-  ipcMain.handle('orgs:choose-import', async (event) => {
-    const { window, orgId, session } = orgWindow(event);
+  const chooseImport = async (event: IpcMainInvokeEvent, fromList: boolean) => {
+    const window = fromList ? listWindow(event) : orgWindow(event).window;
+    const orgId = fromList ? undefined : orgWindow(event).orgId;
+    const session = String(window.webContents.id);
     const id = window.webContents.id;
     if (choosing.has(id))
       throw new Error(
@@ -137,7 +139,9 @@ export function registerOrgsIpc(
         properties: ['openFile'],
       });
       if (selection.canceled || !selection.filePaths[0]) return null;
-      orgWindow(event);
+      if (window.isDestroyed()) return null;
+      if (fromList) listWindow(event);
+      else orgWindow(event);
       const preview = await database.prepareOrgImport(
         selection.filePaths[0],
         session,
@@ -151,6 +155,23 @@ export function registerOrgsIpc(
     } finally {
       choosing.delete(id);
     }
+  };
+  ipcMain.handle('orgs:choose-import', (event) => chooseImport(event, false));
+  ipcMain.handle('orgs:choose-list-import', (event) =>
+    chooseImport(event, true),
+  );
+  ipcMain.handle('orgs:confirm-list-import', async (event, input: unknown) => {
+    const window = listWindow(event);
+    const receipt = await database.commitOrgImport(
+      input,
+      String(window.webContents.id),
+    );
+    windows.notify(receipt.orgId, event.sender.id);
+    return receipt;
+  });
+  ipcMain.handle('orgs:discard-list-import', (event, token: unknown) => {
+    const window = listWindow(event);
+    return database.discardOrgImport(token, String(window.webContents.id));
   });
   ipcMain.handle('orgs:confirm-import', async (event, token: unknown) => {
     const { orgId, session } = orgWindow(event);

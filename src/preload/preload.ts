@@ -16,6 +16,11 @@ const desktop: DesktopApi = {
   },
   context: () => ipcRenderer.invoke('workspace:context'),
   orgs: {
+    chooseImport: () => ipcRenderer.invoke('orgs:choose-list-import'),
+    confirmImport: (input) =>
+      ipcRenderer.invoke('orgs:confirm-list-import', input),
+    discardImport: (token) =>
+      ipcRenderer.invoke('orgs:discard-list-import', token),
     remove: (id) => ipcRenderer.invoke('orgs:delete', id),
     list: (afterId, sort) => ipcRenderer.invoke('orgs:list', afterId, sort),
     add: (input) => ipcRenderer.invoke('orgs:add', input),

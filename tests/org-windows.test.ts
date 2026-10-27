@@ -33,6 +33,68 @@ function fixture() {
   };
 }
 
+test('list import creates org and run atomically, reuses existing identity and keeps session ownership', () => {
+  const f = fixture();
+  try {
+    const raw = JSON.parse(source);
+    raw.result.orgId = ID;
+    raw.result.hostname = 'https://example.my.salesforce.com';
+    const preview = f.store.orgs.prepareJson(
+      JSON.stringify(raw),
+      'from-list.json',
+      'list-window',
+    );
+    assert.equal(f.store.orgs.list().orgs.length, 0);
+    assert.throws(
+      () =>
+        f.store.orgs.commit(
+          preview.token,
+          ID,
+          'example.my.salesforce.com',
+          'other-window',
+        ),
+      /expired/,
+    );
+    f.inspector.exec(
+      "CREATE TRIGGER fail_list_import BEFORE INSERT ON RunReport BEGIN SELECT RAISE(ABORT, 'test failure'); END",
+    );
+    assert.throws(
+      () =>
+        f.store.orgs.commit(
+          preview.token,
+          ID,
+          'example.my.salesforce.com',
+          'list-window',
+        ),
+      /test failure/,
+    );
+    assert.equal(f.store.orgs.list().orgs.length, 0);
+    f.inspector.exec('DROP TRIGGER fail_list_import');
+    f.store.orgs.commit(
+      preview.token,
+      ID,
+      'example.my.salesforce.com',
+      'list-window',
+    );
+    assert.equal(f.store.orgs.get(ID).runCount, 1);
+    const again = f.store.orgs.prepareJson(
+      JSON.stringify(raw),
+      'from-list.json',
+      'list-window',
+    );
+    f.store.orgs.commit(
+      again.token,
+      ID,
+      'example.my.salesforce.com',
+      'list-window',
+    );
+    assert.equal(f.store.orgs.list().orgs.length, 1);
+    assert.equal(f.store.orgs.get(ID).runCount, 1);
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('adding an org requires no run and duplicate adds do not rename existing orgs', () => {
   const f = fixture();
   try {

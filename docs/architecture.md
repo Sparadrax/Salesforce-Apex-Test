@@ -52,3 +52,5 @@ The org popup has a complete run picklist and a three-table [coverage explorer](
 Shared table-sort headers provide accessible direction controls. Scroll-table sorting uses allowlisted worker queries and sort/scope-aware cursor boundaries from main/database/sorted-page.ts; local sorting is used only for the bounded plotted-history response. No runtime table or tooltip library was added.
 
 Right-clicking an Apex class opens an independently registered [coverage-history window](coverage-history.md). Its org/class identity is set by main. History filtering and bounded aggregation run on the SQLite worker; SVG UI code and styles load lazily in history windows.
+
+The org list also supports native JSON selection and an identity-aware review dialog, shared with org-window imports. Separate list-only IPC actions accept validated identity fields; org-window IPC derives its fixed identity from the registry. The existing worker transaction creates or reuses the org while saving the run, avoiding partial empty orgs on failure. Renderer feature modules share the importer without duplicating its loading, confirmation, cancellation and disposal behavior.

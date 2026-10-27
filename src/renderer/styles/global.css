@@ -764,3 +764,8 @@ label small {
 #classes-body tr.coverage-yellow.selected {
   box-shadow: inset 3px 0 #68a4ff;
 }
+.org-heading-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}

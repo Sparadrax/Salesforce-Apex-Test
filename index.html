@@ -34,9 +34,18 @@
               Choose an organization to open its test results in a new window.
             </p>
           </div>
-          <button id="add-org-button" class="button primary" type="button">
-            ＋ Add organization
-          </button>
+          <div class="org-heading-actions">
+            <button
+              id="org-import-button"
+              class="button secondary"
+              type="button"
+            >
+              ＋ Import JSON
+            </button>
+            <button id="add-org-button" class="button primary" type="button">
+              ＋ Add organization
+            </button>
+          </div>
         </div>
         <p id="notice" class="notice" role="status" hidden></p>
         <section
@@ -60,11 +69,18 @@
             <div class="empty-icon" aria-hidden="true">☁</div>
             <h3>Add your first organization</h3>
             <p>
-              Enter its Salesforce org ID and hostname. Open the organization to
-              import deployment test results.
+              Add an organization manually, or import a test report to create it
+              from the JSON.
             </p>
             <button id="empty-add-org" class="button primary" type="button">
               Add organization
+            </button>
+            <button
+              id="empty-org-import-button"
+              class="button secondary"
+              type="button"
+            >
+              Import JSON
             </button>
           </div>
           <div id="org-table-container" class="table-scroll" hidden>
@@ -393,6 +409,33 @@
           </button>
         </div>
         <p id="import-target" class="dialog-description"></p>
+        <div id="import-identity" hidden>
+          <label
+            >Salesforce org ID<input
+              id="import-org-id"
+              type="text"
+              required
+              disabled
+              maxlength="18"
+              pattern="00D[a-zA-Z0-9]{12}([a-zA-Z0-9]{3})?"
+              autocomplete="off"
+              placeholder="00D…"
+          /></label>
+          <label
+            >Instance hostname<input
+              id="import-org-hostname"
+              type="text"
+              required
+              disabled
+              maxlength="180"
+              autocomplete="off"
+              placeholder="your-company.my.salesforce.com"
+          /></label>
+          <p class="dialog-description">
+            Details are filled from the JSON when supplied. Enter any missing
+            details. Existing organizations are matched by org ID.
+          </p>
+        </div>
         <div class="file-preview">
           <span aria-hidden="true">{ }</span>
           <div>

@@ -1,6 +1,7 @@
 import type { OrgsApi, OrgSummary } from '../../../shared/contracts/orgs';
 import { element, message } from '../../shared/dom';
 import { ScrollTable } from '../../shared/scroll-table';
+import { mountRunImporter } from '../runs/import-dialog';
 
 export function mountOrgs(root: Document, api: OrgsApi): () => void {
   const node = <T extends HTMLElement>(id: string) => element<T>(root, id);
@@ -184,11 +185,27 @@ export function mountOrgs(root: Document, api: OrgsApi): () => void {
   const unsubscribe = api.onChanged(() => {
     void load();
   });
+  const disposeImporter = mountRunImporter(
+    root,
+    {
+      chooseImport: () => api.chooseImport(),
+      discardImport: (token) => api.discardImport(token),
+      confirmImport: (token, identity) => {
+        if (!identity)
+          return Promise.reject(new Error('Enter the organization details.'));
+        return api.confirmImport({ token, ...identity });
+      },
+    },
+    () => null,
+    load,
+    true,
+  );
   void load();
   return () => {
     disposed = true;
     abort.abort();
     table.dispose();
+    disposeImporter();
     unsubscribe();
   };
 }

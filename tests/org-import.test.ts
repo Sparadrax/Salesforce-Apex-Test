@@ -24,6 +24,77 @@ const source = readFileSync(
 );
 const ID = '00D000000000001EAA';
 
+test('CLI coverage exports derive uncovered counts from totalLines and totalCovered', () => {
+  const f = fixture();
+  try {
+    const report = {
+      summary: { testsRan: 0, failing: 0, testRunId: '707000000000001AAA' },
+      tests: [],
+      coverage: {
+        coverage: [
+          {
+            id: '01p000000000001AAA',
+            name: 'FirstClass',
+            totalLines: 191,
+            totalCovered: 174,
+            coveredPercent: 91,
+            lines: { 2: 1, 3: 0 },
+          },
+          {
+            id: '01p000000000002AAA',
+            name: 'EmptyClass',
+            totalLines: '0',
+            totalCovered: '0',
+            lines: {},
+          },
+        ],
+      },
+    };
+    const json = JSON.stringify(report);
+    const data = parseDeployment(json);
+    assert.deepEqual(
+      data.classes.map(({ covered, uncovered }) => [covered, uncovered]),
+      [
+        [174, 17],
+        [0, 0],
+      ],
+    );
+    const preview = f.store.orgs.prepareJson(json, 'cli-report.json');
+    f.store.orgs.commit(preview.token, ID, 'example.my.salesforce.com');
+    assert.equal(
+      f.store.orgs
+        .coverage(ID, data.runId)
+        .classes.find((row) => row.name === 'FirstClass')?.percentage,
+      91.1,
+    );
+    const row: Record<string, unknown> = report.coverage.coverage[0]!;
+    row.totalCovered = 192;
+    assert.throws(
+      () => parseDeployment(JSON.stringify(report)),
+      /FirstClass.*exceed total/,
+    );
+    row.totalCovered = 174;
+    row.numLinesUncovered = 18;
+    assert.throws(
+      () => parseDeployment(JSON.stringify(report)),
+      /FirstClass.*do not match/,
+    );
+    row.numLinesUncovered = -1;
+    assert.throws(
+      () => parseDeployment(JSON.stringify(report)),
+      /FirstClass.*nonnegative integer/,
+    );
+    delete row.numLinesUncovered;
+    delete row.totalCovered;
+    assert.throws(
+      () => parseDeployment(JSON.stringify(report)),
+      /FirstClass.*missing coverage counts/,
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('large JSON previews use a snapshot and import beyond the old 64 MiB limit', () => {
   const f = fixture();
   try {

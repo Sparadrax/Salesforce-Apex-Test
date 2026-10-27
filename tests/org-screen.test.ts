@@ -66,6 +66,14 @@ function dom() {
 function home(overrides: Partial<OrgsApi> = {}) {
   const screen = dom();
   const api: OrgsApi = {
+    chooseImport: async () => null,
+    confirmImport: async () => ({
+      orgId: org.id,
+      runId: 'new',
+      classCount: 1,
+      testClassCount: 1,
+    }),
+    discardImport: async () => {},
     remove: async () => false,
     list: async () => ({ orgs: [], nextCursor: null }),
     add: async () => org,
@@ -159,16 +167,114 @@ function results(overrides: Partial<OrgRunsApi> = {}) {
   return { ...screen, dispose };
 }
 
-test('home shows only the org list and add action, with no import action on the first screen', async () => {
+test('home shows the org list with manual add and JSON import actions', async () => {
   const s = home();
   try {
     await setImmediate();
     assert.equal(s.node('org-screen').hidden, false);
     assert.equal(s.node('run-screen').hidden, true);
     assert.equal(s.node('org-screen').querySelector('#import-button'), null);
+    assert.ok(s.node('org-screen').querySelector('#org-import-button'));
     assert.equal(s.node('empty-state').hidden, false);
     s.click('add-org-button');
     assert.equal(s.node('add-org-dialog').hasAttribute('open'), true);
+  } finally {
+    s.dispose();
+  }
+});
+
+test('org list import prefills JSON identity, confirms once and refreshes organizations', async () => {
+  let listCalls = 0;
+  const confirmations: unknown[] = [];
+  const s = home({
+    chooseImport: async () => ({
+      ...preview,
+      orgId: org.id,
+      hostName: org.hostName,
+    }),
+    list: async () => {
+      listCalls++;
+      return { orgs: listCalls > 1 ? [org] : [], nextCursor: null };
+    },
+    confirmImport: async (input) => {
+      confirmations.push(input);
+      return { orgId: org.id, runId: 'new', classCount: 1, testClassCount: 1 };
+    },
+  });
+  try {
+    await setImmediate();
+    s.click('org-import-button');
+    await setImmediate();
+    assert.equal(s.node('import-dialog').hasAttribute('open'), true);
+    assert.equal(s.node('import-identity').hidden, false);
+    assert.equal(
+      (s.node('import-org-id') as unknown as HTMLInputElement).value,
+      org.id,
+    );
+    assert.equal(
+      (s.node('import-org-hostname') as unknown as HTMLInputElement).value,
+      org.hostName,
+    );
+    s.submit('import-form');
+    s.submit('import-form');
+    await setImmediate();
+    assert.deepEqual(confirmations, [
+      { token: preview.token, orgId: org.id, hostName: org.hostName },
+    ]);
+    assert.equal(s.node('import-dialog').hasAttribute('open'), false);
+    assert.equal(s.node('org-list').children.length, 1);
+  } finally {
+    s.dispose();
+  }
+});
+
+test('empty org list import accepts missing identity and cancellation discards its preview', async () => {
+  const discarded: string[] = [];
+  const s = home({
+    chooseImport: async () => preview,
+    discardImport: async (token) => {
+      discarded.push(token);
+    },
+  });
+  try {
+    await setImmediate();
+    s.click('empty-org-import-button');
+    await setImmediate();
+    assert.equal(
+      (s.node('import-org-id') as unknown as HTMLInputElement).readOnly,
+      false,
+    );
+    assert.equal(
+      (s.node('import-org-id') as unknown as HTMLInputElement).value,
+      '',
+    );
+    s.click('cancel-import');
+    await setImmediate();
+    assert.deepEqual(discarded, [preview.token]);
+    assert.equal(s.node('import-dialog').hasAttribute('open'), false);
+  } finally {
+    s.dispose();
+  }
+});
+
+test('list import errors stay in the list window and do not create an org', async () => {
+  let adds = 0;
+  const s = home({
+    chooseImport: async () => {
+      throw new Error('Invalid JSON');
+    },
+    add: async () => {
+      adds++;
+      return org;
+    },
+  });
+  try {
+    await setImmediate();
+    s.click('org-import-button');
+    await setImmediate();
+    assert.equal(s.node('notice').hidden, false);
+    assert.match(s.node('notice').textContent!, /Invalid JSON/);
+    assert.equal(adds, 0);
   } finally {
     s.dispose();
   }

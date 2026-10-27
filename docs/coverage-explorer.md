@@ -38,3 +38,5 @@ Standard Metadata API deployment results typically supply aggregate coverage and
 - `src/main/database/schema/coverage-drilldown-v5.ts`: indexes for class/test/method lookup
 
 Schema version 5 adds indexes only and preserves existing data. Source tests cover click flow, all history pages in the picklist, stale-response protection, missing data, failed outcomes, indexed pagination, and org/class isolation. No build or packaging is needed for those checks.
+
+Complete Salesforce CLI test-report exports with coverage.records now provide native line attribution for the second and third tables. The importer validates these records and unions method-covered line sets per test class. Reports previously imported without this support must be reimported after rebuilding. See [org import](org-import.md#native-cli-method-coverage).

@@ -100,6 +100,9 @@ export interface CoveredMethodPage {
   nextCursor: string | null;
 }
 export interface OrgsApi {
+  chooseImport(): Promise<DeploymentPreview | null>;
+  confirmImport(input: ImportConfirmation): Promise<ImportReceipt>;
+  discardImport(token: string): Promise<void>;
   list(afterId?: string, sort?: TableSort): Promise<OrgPage>;
   add(input: { id: string; hostName: string }): Promise<OrgSummary>;
   /** Native confirmation is presented before any records are deleted. */

@@ -2,7 +2,7 @@
 
 ## First screen: organization list
 
-The main window contains only the saved org list and an **Add organization** action. Adding an org requires its Salesforce org ID and instance hostname, and does not create a run or import results. Duplicate IDs are rejected without changing the existing org. IDs are canonicalized from 15 to 18 characters; HTTPS instance URLs are normalized to hostnames.
+The main window contains the saved org list, **Add organization**, and **Import JSON** actions (also available when the list is empty). Adding an org requires its Salesforce org ID and instance hostname, and does not create a run or import results. Duplicate IDs are rejected without changing the existing org. IDs are canonicalized from 15 to 18 characters; HTTPS instance URLs are normalized to hostnames.
 
 Click the organization name or **Open tests** to create a new native window. Every click creates a fresh, unparented window, even for an org that is already open. Closing the main window does not close its org windows. Each window has its own selected run, pages, and import preview. Changes refresh the main list and other windows for the same org without resetting their selected historical run when it is still on the current history page.
 
@@ -47,7 +47,7 @@ Singleton result objects and arrays are accepted, as are numeric strings. The im
 
 ### CLI test-report JSON
 
-Salesforce CLI reports with summary, tests[].ApexClass, and codecoverage (or coverage.coverage) are also supported. Tests use MethodName, Outcome, RunTime, and Message. Missing run IDs receive a deterministic SHA-256-based ID for repeatable imports. Missing dates remain undated; import time is not substituted for test execution time.
+Salesforce CLI reports with summary, tests[].ApexClass, and codecoverage (or coverage.coverage) are also supported. Tests use MethodName, Outcome, RunTime, and Message. Coverage rows support either numLinesCovered/numLinesUncovered, or totalLines/totalCovered as emitted by CLI coverage.coverage exports; uncovered lines are derived by subtraction. Counts must be nonnegative integers and must agree when totals are provided. coveredPercent is not used to reconstruct line counts. Import the complete test-result-<run-id>.json report rather than a standalone coverage-only artifact. Missing run IDs receive a deterministic SHA-256-based ID for repeatable imports. Missing dates remain undated; import time is not substituted for test execution time.
 
 ## Storage and merge behavior
 
@@ -77,3 +77,11 @@ The popup now uses a three-table class → test class → method explorer. See [
 The source importer also supports an explicitly application-specific `sfccCoverage` version-1 section at the document root (or result). It carries `testClassCoverage` and `testMethodCoverage` arrays containing Apex/test-class IDs and covered/uncovered counts; method rows also contain name. Parent classes and method outcomes must exist in the deployment result, and count totals must match the covered Apex class. Duplicate or invalid rows reject the entire import. Percentages are generated in SQLite, not supplied by the fixture. This does not alter how ordinary Salesforce JSON is interpreted or infer missing attribution.
 
 See [demo data](../examples/README.md). The importer extension requires a new build when using a previously compiled installer.
+
+## Native CLI method coverage
+
+The complete CLI test report can include coverage.records with ApexClassOrTrigger, ApexTestClass, TestMethodName, counts, and covered/uncovered line arrays. These records populate TestMethodCoverage. A test class contribution is calculated from the union of covered line numbers across its methods, never the sum of method percentages. Test identity uses the exact result class ID, or a unique matching name among the report results when exported IDs differ (such as 07M versus 01p). Ambiguous names, missing methods, duplicate records, inconsistent totals and invalid line sets reject the import. All-zero class/test pairs do not establish covering links; zero method coverage remains explicit within linked pairs. Aggregate-only files retain their existing behavior. Reimport reports saved by older builds after rebuilding to populate the new links; no schema change is required.
+
+## Import from the org list
+
+The list window has its own native file-selection and window-owned preview session. The shared review dialog prefills org ID and hostname from the JSON; missing identity fields must be supplied before confirming. An org ID supplied by the JSON is read-only in the dialog and is checked again by the repository. Confirming atomically upserts the organization and imports the run. Existing org IDs are reused without duplicates; repeated run IDs update their saved results. Canceling or an import failure creates no partial organization. The list refreshes after success and other windows for the imported org receive change notifications. List-only IPC channels reject org/history windows; existing org-window imports retain their fixed target identity. No schema change is required.

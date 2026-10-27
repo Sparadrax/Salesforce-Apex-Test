@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { parseCliDetailedCoverage } from './cli-detailed-coverage';
 import type { TestOutcome } from '../../../shared/contracts/orgs';
 import {
   parseDetailedCoverage,
@@ -112,20 +113,43 @@ export function parseDeployment(json: string): DeploymentData {
       18,
     );
     const name = text(row.name, 'Covered class name', 180);
-    const uncovered = count(
-      report ? row.numLinesUncovered : row.numLocationsNotCovered,
-      'Uncovered locations',
-    );
-    const covered =
-      report && row.numLinesCovered !== undefined
-        ? count(row.numLinesCovered, 'Covered locations')
-        : count(
-            report ? (row.totalLines ?? row.numLocations) : row.numLocations,
-            'Total locations',
-          ) - uncovered;
-    if (covered < 0)
+    const label = `Coverage for ${name} (${id})`;
+    const totalValue = report
+      ? (row.totalLines ?? row.numLocations)
+      : row.numLocations;
+    const coveredValue = report
+      ? (row.numLinesCovered ?? row.totalCovered)
+      : undefined;
+    const uncoveredValue = report
+      ? row.numLinesUncovered
+      : row.numLocationsNotCovered;
+    const total =
+      totalValue === undefined
+        ? undefined
+        : count(totalValue, `${label}: total locations`);
+    let covered =
+      coveredValue === undefined
+        ? undefined
+        : count(coveredValue, `${label}: covered locations`);
+    let uncovered =
+      uncoveredValue === undefined
+        ? undefined
+        : count(uncoveredValue, `${label}: uncovered locations`);
+    if (uncovered === undefined && total !== undefined && covered !== undefined)
+      uncovered = total - covered;
+    if (covered === undefined && total !== undefined && uncovered !== undefined)
+      covered = total - uncovered;
+    if (covered === undefined || uncovered === undefined)
       throw new ImportValidationError(
-        'Uncovered locations exceed total locations.',
+        `${label}: missing coverage counts. Include covered and uncovered counts, or totalLines with totalCovered.`,
+      );
+    if (covered < 0 || uncovered < 0)
+      throw new ImportValidationError(
+        `${label}: covered or uncovered locations exceed total locations.`,
+      );
+    if (total !== undefined && covered + uncovered !== total)
+      throw new ImportValidationError(
+        `${label}: covered and uncovered locations do not match total locations.`,
       );
     if (classes.has(id))
       throw new ImportValidationError(
@@ -229,10 +253,19 @@ export function parseDeployment(json: string): DeploymentData {
     testsRun,
     failures,
     tests: outcomes,
-    ...parseDetailedCoverage(root.sfccCoverage ?? result.sfccCoverage, {
-      classes: [...classes.values()],
-      testClasses: [...testClasses.values()],
-      tests: outcomes,
-    }),
+    ...(report &&
+    coverageContainer.records !== undefined &&
+    root.sfccCoverage === undefined &&
+    result.sfccCoverage === undefined
+      ? parseCliDetailedCoverage(coverageContainer.records, {
+          classes: [...classes.values()],
+          testClasses: [...testClasses.values()],
+          tests: outcomes,
+        })
+      : parseDetailedCoverage(root.sfccCoverage ?? result.sfccCoverage, {
+          classes: [...classes.values()],
+          testClasses: [...testClasses.values()],
+          tests: outcomes,
+        })),
   };
 }
