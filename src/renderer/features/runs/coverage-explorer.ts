@@ -6,6 +6,7 @@ import type {
 } from '../../../shared/contracts/orgs';
 import { element, cell } from '../../shared/dom';
 import { ScrollTable } from '../../shared/scroll-table';
+import { coverageTrend } from './coverage-trend';
 
 const percentage = (value: number | null) =>
   value === null ? '—' : `${value.toFixed(2)}%`;
@@ -158,6 +159,17 @@ export function mountCoverageExplorer(
           `${percentage(item.percentage)} coverage — ${item.percentage < 75 ? 'below 75%' : '75% to 80%'}`,
         );
       }
+      const trend = coverageTrend(
+        root,
+        item.percentage,
+        item.previousPercentage ?? null,
+      );
+      const scoreCell = row.lastElementChild!;
+      scoreCell.append(trend);
+      scoreCell.setAttribute(
+        'aria-label',
+        `${scoreCell.getAttribute('aria-label') ?? percentage(item.percentage)}. ${trend.title}`,
+      );
       return row;
     },
     error: onError,

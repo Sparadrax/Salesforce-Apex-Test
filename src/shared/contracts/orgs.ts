@@ -69,6 +69,8 @@ export interface TestPage {
   nextCursor: number | null;
 }
 export interface CoverageRow {
+  /** Same class in the immediately preceding dated org run; null when unavailable. */
+  previousPercentage?: number | null;
   id: string;
   name: string | null;
   covered: number | null;

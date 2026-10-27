@@ -183,13 +183,23 @@ export class OrgRepository {
   ): CoveragePage {
     const id = orgId(idValue);
     const run = text(runValue, 'Run ID', 180);
+    const previousRun =
+      this.db
+        .prepare(`SELECT previous.id FROM Run current
+      JOIN Run previous ON previous.orgId = current.orgId
+      WHERE current.orgId = ? AND current.id = ?
+        AND current.startTime IS NOT NULL AND previous.startTime IS NOT NULL
+        AND (COALESCE(previous.startTime, ''), previous.id) < (COALESCE(current.startTime, ''), current.id)
+      ORDER BY COALESCE(previous.startTime, '') DESC, previous.id DESC LIMIT 1`)
+        .get(id, run)?.id ?? null;
     if (sort !== undefined) {
       const page = sortedPage<CoveragePage['classes'][number]>(
         this.db,
         `SELECT c.apexClass AS id, a.name, c.numLineCovered AS covered,
-        c.numLineUncovered AS uncovered, c.percentage FROM GlobalCoverage c JOIN ApexClass a ON a.id = c.apexClass AND a.orgId = c.orgId
+        c.numLineUncovered AS uncovered, c.percentage, previous.percentage AS previousPercentage FROM GlobalCoverage c JOIN ApexClass a ON a.id = c.apexClass AND a.orgId = c.orgId
+        LEFT JOIN GlobalCoverage previous ON previous.orgId = c.orgId AND previous.apexClass = c.apexClass AND previous.run = ?
         WHERE c.orgId = ? AND c.run = ?`,
-        [id, run],
+        [previousRun, id, run],
         afterId,
         sort,
         {
@@ -204,10 +214,11 @@ export class OrgRepository {
       throw new ImportValidationError('Invalid coverage cursor.');
     const classes = this.db
       .prepare(`SELECT c.apexClass AS id, a.name, c.numLineCovered AS covered,
-      c.numLineUncovered AS uncovered, c.percentage FROM GlobalCoverage c
+      c.numLineUncovered AS uncovered, c.percentage, previous.percentage AS previousPercentage FROM GlobalCoverage c
       JOIN ApexClass a ON a.id = c.apexClass AND a.orgId = c.orgId
+      LEFT JOIN GlobalCoverage previous ON previous.orgId = c.orgId AND previous.apexClass = c.apexClass AND previous.run = ?
       WHERE c.orgId = ? AND c.run = ? AND c.apexClass > ? ORDER BY c.apexClass LIMIT 51`)
-      .all(id, run, afterId) as unknown as CoveragePage['classes'];
+      .all(previousRun, id, run, afterId) as unknown as CoveragePage['classes'];
     const more = classes.length > 50;
     if (more) classes.pop();
     return { classes, nextCursor: more ? classes.at(-1)!.id : null };

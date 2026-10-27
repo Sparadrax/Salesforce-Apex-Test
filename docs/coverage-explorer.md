@@ -40,3 +40,9 @@ Standard Metadata API deployment results typically supply aggregate coverage and
 Schema version 5 adds indexes only and preserves existing data. Source tests cover click flow, all history pages in the picklist, stale-response protection, missing data, failed outcomes, indexed pagination, and org/class isolation. No build or packaging is needed for those checks.
 
 Complete Salesforce CLI test-report exports with coverage.records now provide native line attribution for the second and third tables. The importer validates these records and unions method-covered line sets per test class. Reports previously imported without this support must be reimported after rebuilding. See [org import](org-import.md#native-cli-method-coverage).
+
+## Coverage change from the previous run
+
+Apex class percentages show a green upward chevron when improved, a red downward chevron when decreased, and an equals sign when unchanged. Hover text and accessible labels provide the previous and current percentages. Existing red/yellow row thresholds remain independent of change direction.
+
+The worker resolves the immediately preceding dated run within the same org once per coverage page, using the same descending date/ID order as the run picker. Selecting a historical run compares it with its own predecessor. Tied timestamps use the stable run-ID order; undated runs have no comparison. Each page joins only its classes to coverage in that exact preceding run. Missing class coverage, an unknown percentage, or no predecessor produces a neutral dash; the query does not skip backward to a different run. Known zero coverage remains comparable. Comparisons use the same rounded percentages displayed in the tables and are preserved across sorting and cursor batches. No schema migration or reimport is needed.

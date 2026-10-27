@@ -167,6 +167,72 @@ function results(overrides: Partial<OrgRunsApi> = {}) {
   return { ...screen, dispose };
 }
 
+test('Apex coverage trends show green up, red down, equals and unavailable states', async () => {
+  const s = results({
+    coverage: async () => ({
+      classes: [
+        {
+          id: 'up',
+          name: 'Improved',
+          covered: 80,
+          uncovered: 20,
+          percentage: 80,
+          previousPercentage: 70,
+        },
+        {
+          id: 'down',
+          name: 'Decreased',
+          covered: 60,
+          uncovered: 40,
+          percentage: 60,
+          previousPercentage: 80,
+        },
+        {
+          id: 'equal',
+          name: 'Unchanged',
+          covered: 0,
+          uncovered: 100,
+          percentage: 0,
+          previousPercentage: 0,
+        },
+        {
+          id: 'new',
+          name: 'New',
+          covered: 90,
+          uncovered: 10,
+          percentage: 90,
+          previousPercentage: null,
+        },
+        {
+          id: 'unknown',
+          name: 'Unknown',
+          covered: 0,
+          uncovered: 0,
+          percentage: null,
+          previousPercentage: 80,
+        },
+      ],
+      nextCursor: null,
+    }),
+  });
+  try {
+    await setImmediate();
+    const indicators = s
+      .node('classes-body')
+      .querySelectorAll('.coverage-trend');
+    assert.equal(indicators.length, 5);
+    assert.equal(indicators[0].classList.contains('coverage-trend-up'), true);
+    assert.match(indicators[0].getAttribute('title')!, /70.00% to 80.00%/);
+    assert.equal(indicators[1].classList.contains('coverage-trend-down'), true);
+    assert.match(indicators[1].getAttribute('aria-label')!, /decreased/);
+    assert.equal(indicators[2].textContent, '=');
+    assert.equal(indicators[3].textContent, '—');
+    assert.equal(indicators[4].textContent, '—');
+  } finally {
+    s.dispose();
+  }
+});
+
 test('home shows the org list with manual add and JSON import actions', async () => {
   const s = home();
   try {
