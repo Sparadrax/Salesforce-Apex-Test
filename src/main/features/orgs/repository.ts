@@ -1,5 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { openSync, closeSync, fstatSync, readSync } from 'node:fs';
+import {
+  openSync,
+  closeSync,
+  fstatSync,
+  readSync,
+  mkdtempSync,
+  writeFileSync,
+  readFileSync,
+  unlinkSync,
+  rmdirSync,
+} from 'node:fs';
+import os from 'node:os';
 import { Buffer } from 'node:buffer';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
@@ -28,14 +39,15 @@ import { deleteOrganization } from './delete-org';
 import type { TableSort } from '../../../shared/contracts/table-sort';
 import { sortedPage } from '../../database/sorted-page';
 
-export const MAX_IMPORT_BYTES = 64 * 1024 * 1024;
+export const MAX_IMPORT_BYTES = 500 * 1024 * 1024;
+const MAX_STAGED_BYTES = 1024 * 1024 * 1024;
 const PREVIEW_LIFETIME = 10 * 60 * 1000;
 type PreparedImport = {
   token: string;
   expires: number;
   sourceName: string;
-  json: string;
-  data: DeploymentData;
+  directory: string;
+  orgId: string | null;
   targetOrgId: string | undefined;
   timer: ReturnType<typeof setTimeout>;
   bytes: number;
@@ -113,7 +125,7 @@ export class OrgRepository {
     const removed = deleteOrganization(this.db, id);
     if (removed)
       for (const [session, staged] of this.prepared) {
-        if (staged.targetOrgId === id || staged.data.orgId === id)
+        if (staged.targetOrgId === id || staged.orgId === id)
           this.clearSession(session);
       }
     return removed;
@@ -203,15 +215,37 @@ export class OrgRepository {
 
   private clearSession(session: string): void {
     const previous = this.prepared.get(session);
-    if (previous) clearTimeout(previous.timer);
+    if (previous) {
+      clearTimeout(previous.timer);
+      unlinkSync(path.join(previous.directory, 'source.json'));
+      unlinkSync(path.join(previous.directory, 'normalized.json'));
+      rmdirSync(previous.directory);
+    }
     this.prepared.delete(session);
   }
 
   private availableBytes(): number {
     return (
-      MAX_IMPORT_BYTES -
+      MAX_STAGED_BYTES -
       [...this.prepared.values()].reduce((sum, item) => sum + item.bytes, 0)
     );
+  }
+
+  private validateSize(bytes: number): void {
+    if (bytes === 0)
+      throw new ImportValidationError('Choose a nonempty JSON file.');
+    if (bytes > MAX_IMPORT_BYTES)
+      throw new ImportValidationError(
+        `The selected JSON is ${(bytes / 1024 / 1024).toFixed(1)} MiB. The per-file limit is 500 MiB.`,
+      );
+    if (this.prepared.size >= 8)
+      throw new ImportValidationError(
+        'Eight import previews are already open. Close a preview and try again.',
+      );
+    if (bytes > this.availableBytes())
+      throw new ImportValidationError(
+        'Import previews across all windows exceed the 1 GiB staging limit. Close another preview and try again.',
+      );
   }
 
   prepareFile(
@@ -224,14 +258,9 @@ export class OrgRepository {
     let json: string;
     try {
       const info = fstatSync(descriptor);
-      if (
-        !info.isFile() ||
-        info.size === 0 ||
-        info.size > this.availableBytes()
-      )
-        throw new ImportValidationError(
-          'Choose a nonempty JSON file. Previews across all windows are limited to 64 MiB; close another preview if needed.',
-        );
+      if (!info.isFile())
+        throw new ImportValidationError('Choose a JSON file, not a directory.');
+      this.validateSize(info.size);
       const buffer = Buffer.alloc(info.size + 1);
       let length = 0;
       while (length < buffer.length) {
@@ -245,7 +274,7 @@ export class OrgRepository {
         if (read === 0) break;
         length += read;
       }
-      if (length > info.size)
+      if (length !== info.size)
         throw new ImportValidationError(
           'The file changed while being read. Choose it again.',
         );
@@ -272,11 +301,8 @@ export class OrgRepository {
     targetOrgId?: string,
   ): DeploymentPreview {
     this.clearSession(session);
-    if (
-      this.prepared.size >= 8 ||
-      Buffer.byteLength(json) > this.availableBytes()
-    )
-      throw new ImportValidationError('The import exceeds 64 MiB.');
+    const bytes = Buffer.byteLength(json);
+    this.validateSize(bytes);
     const data = parseDeployment(json);
     if (targetOrgId) {
       const target = this.get(targetOrgId);
@@ -286,6 +312,27 @@ export class OrgRepository {
         );
     }
     const token = randomUUID();
+    const directory = mkdtempSync(
+      path.join(os.tmpdir(), 'apex-import-preview-'),
+    );
+    try {
+      writeFileSync(path.join(directory, 'source.json'), json, { mode: 0o600 });
+      writeFileSync(
+        path.join(directory, 'normalized.json'),
+        JSON.stringify(data),
+        { mode: 0o600 },
+      );
+    } catch (error) {
+      for (const name of ['source.json', 'normalized.json']) {
+        try {
+          unlinkSync(path.join(directory, name));
+        } catch {
+          /* File may not have been created. */
+        }
+      }
+      rmdirSync(directory);
+      throw error;
+    }
     const timer = setTimeout(
       () => this.clearSession(session),
       PREVIEW_LIFETIME,
@@ -294,12 +341,12 @@ export class OrgRepository {
     this.prepared.set(session, {
       token,
       sourceName,
-      data,
-      json,
+      directory,
+      orgId: data.orgId,
       expires: Date.now() + PREVIEW_LIFETIME,
       targetOrgId,
       timer,
-      bytes: Buffer.byteLength(json),
+      bytes,
     });
     return {
       token,
@@ -334,11 +381,13 @@ export class OrgRepository {
       throw new ImportValidationError(
         'This import belongs to another organization window.',
       );
-    if (staged.data.orgId !== null && orgId(staged.data.orgId) !== id)
+    if (staged.orgId !== null && orgId(staged.orgId) !== id)
       throw new ImportValidationError(
         'The selected org ID does not match the org ID in the JSON.',
       );
-    const { data } = staged;
+    const data = JSON.parse(
+      readFileSync(path.join(staged.directory, 'normalized.json'), 'utf8'),
+    ) as DeploymentData;
     this.db.exec('BEGIN IMMEDIATE');
     try {
       this.db
@@ -381,7 +430,7 @@ export class OrgRepository {
           id,
           staged.sourceName,
           new Date().toISOString(),
-          staged.json,
+          readFileSync(path.join(staged.directory, 'source.json'), 'utf8'),
         );
       this.db.exec('COMMIT');
     } catch (error) {

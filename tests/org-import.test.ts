@@ -1,5 +1,14 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+  readFileSync,
+  writeFileSync,
+  openSync,
+  closeSync,
+  writeSync,
+  ftruncateSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -7,12 +16,66 @@ import { test } from 'node:test';
 import { LocalStore } from '../src/main/database/store';
 import { parseDeployment } from '../src/main/features/orgs/parse-deployment';
 import { hostName, orgId } from '../src/main/features/orgs/import-validation';
+import { MAX_IMPORT_BYTES } from '../src/main/features/orgs/repository';
 
 const source = readFileSync(
   new URL('../examples/deployment-result.json', import.meta.url),
   'utf8',
 );
 const ID = '00D000000000001EAA';
+
+test('large JSON previews use a snapshot and import beyond the old 64 MiB limit', () => {
+  const f = fixture();
+  try {
+    const filename = path.join(f.directory, 'large.json');
+    const descriptor = openSync(filename, 'w');
+    try {
+      const padding = Buffer.alloc(1024 * 1024, ' ');
+      const megabytes = process.env.APEX_LARGE_IMPORT_TEST === '400' ? 400 : 65;
+      for (let i = 0; i < megabytes; i++) writeSync(descriptor, padding);
+      writeSync(descriptor, source);
+    } finally {
+      closeSync(descriptor);
+    }
+    const preview = f.store.orgs.prepareFile(filename);
+    writeFileSync(filename, 'changed after preview');
+    f.store.orgs.commit(preview.token, ID, 'example.my.salesforce.com');
+    assert.equal(f.store.orgs.get(ID).runCount, 1);
+    assert.equal(
+      f.inspector
+        .prepare('SELECT json_valid(document) AS valid FROM DeploymentImport')
+        .get()?.valid,
+      1,
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('oversized files and full preview slots have distinct actionable errors', () => {
+  const f = fixture();
+  try {
+    const filename = path.join(f.directory, 'too-large.json');
+    const descriptor = openSync(filename, 'w');
+    try {
+      ftruncateSync(descriptor, MAX_IMPORT_BYTES + 1);
+    } finally {
+      closeSync(descriptor);
+    }
+    assert.throws(
+      () => f.store.orgs.prepareFile(filename),
+      /per-file limit is 500 MiB/,
+    );
+    for (let i = 0; i < 8; i++)
+      f.store.orgs.prepareJson(source, 'small.json', String(i));
+    assert.throws(
+      () => f.store.orgs.prepareJson(source, 'small.json', 'ninth'),
+      /Eight import previews/,
+    );
+  } finally {
+    f.cleanup();
+  }
+});
 function fixture() {
   const directory = mkdtempSync(path.join(os.tmpdir(), 'apex-org-import-'));
   const filename = path.join(directory, 'database.sqlite');

@@ -46,6 +46,7 @@ import {
 } from '../features/orgs/import-validation';
 
 type Pending = {
+  longRunning: boolean;
   resolve: (value: DatabaseResult) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -99,14 +100,21 @@ export class DatabaseClient implements DatabaseApi {
       );
     }
     const id = ++this.sequence;
+    const longRunning =
+      command.operation === 'orgs:prepare' ||
+      command.operation === 'orgs:commit' ||
+      [...this.pending.values()].some((request) => request.longRunning);
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.fail(
-          new Error('Database timed out; a pending write may have committed'),
-        );
-        void this.worker.terminate();
-      }, 30000);
-      this.pending.set(id, { resolve, reject, timer });
+      const timer = setTimeout(
+        () => {
+          this.fail(
+            new Error('Database timed out; a pending write may have committed'),
+          );
+          void this.worker.terminate();
+        },
+        longRunning ? 600000 : 30000,
+      );
+      this.pending.set(id, { resolve, reject, timer, longRunning });
       try {
         this.worker.postMessage({ id, command });
       } catch (error) {

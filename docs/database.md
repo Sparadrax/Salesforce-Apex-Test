@@ -61,7 +61,7 @@ const status = await database.status();
 - SQLite page cache is approximately 16 MiB; temporary SQL storage uses disk. These settings bound particular caches and messages, not the total Electron process memory.
 - WAL auto-checkpoint runs every 1,000 pages. Normal shutdown drains accepted requests and closes the connection.
 
-Pagination is a live forward scan by ID, not a frozen snapshot: concurrent updates may change existing records, and inserts may appear in later pages. A 30-second request timeout stops the worker and rejects pending operations. A write may have committed before a crash or timeout; use stable keys for idempotent upserts and verify state after restarting. Do not automatically replay non-idempotent operations.
+Pagination is a live forward scan by ID, not a frozen snapshot: concurrent updates may change existing records, and inserts may appear in later pages. A 30-second request timeout stops the worker and rejects pending operations. Import preparation/commit and requests queued behind them use a 10-minute timeout for large files. A write may have committed before a crash or timeout; use stable keys for idempotent upserts and verify state after restarting. Do not automatically replay non-idempotent operations.
 
 SQLite is intended here for substantial local datasets, with one serialized writer. Actual capacity and throughput depend on record sizes, indexes, queries, free disk space, and hardware. The automated test inserts 100,000 small synthetic records and verifies an indexed deep page; it does not establish a production size or throughput guarantee. Test representative Salesforce workloads as those features are built.
 
@@ -89,7 +89,7 @@ Run the same checks on macOS before a Mac release.
 
 The main screen adds and opens orgs. Org windows read run history and import JSON through a scoped API. RunReport stores the imported summary, and RunTestResult stores bounded, paginated individual outcomes. Both reference Run by (run, orgId). A date expression index supports descending history with deterministic ID ties and undated runs last. Existing DeploymentImport archives are backfilled once in migration 4. The full original JSON is retained.
 
-Previews are owned by a main-process window session, with up to eight staged previews and 64 MiB combined source JSON across all windows. Canceling or closing a window releases only its preview. See [org import](org-import.md) for the current two-screen flow and concurrent-window behavior; it supersedes the older single-preview description above.
+Previews are owned by a main-process window session, with up to eight disk-backed staged previews, 500 MiB per file, and 1 GiB combined source JSON across all windows. Both source and normalized snapshots are loaded from temporary storage when confirming; waiting previews retain only metadata in memory. Canceling or closing a window releases only its preview. See [org import](org-import.md) for the current two-screen flow and concurrent-window behavior; it supersedes the older single-preview description above.
 
 ## Coverage recovery (schema 6)
 
