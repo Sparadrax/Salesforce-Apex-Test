@@ -2,9 +2,12 @@
 const { app } = require('electron');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
-const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'apex-coverage-ui-'));
+const directory = process.env.APEX_SMOKE_USER_DATA;
+if (!directory)
+  throw new Error(
+    'Run with node scripts/run-electron-smoke.cjs coverage so cleanup happens after exit.',
+  );
 fs.mkdirSync(path.join(directory, 'data'));
 fs.copyFileSync(
   path.resolve(process.argv[3]),
@@ -156,7 +159,6 @@ app.once('browser-window-created', (_event, root) => {
   });
 });
 app.on('will-quit', () => {
-  fs.rmSync(directory, { recursive: true, force: true });
-  if (!passed) app.exit(1);
+  if (!passed) process.exitCode = 1;
 });
 require(path.resolve(process.argv[2]));

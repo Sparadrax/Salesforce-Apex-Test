@@ -94,3 +94,13 @@ Previews are owned by a main-process window session, with up to eight disk-backe
 ## Coverage recovery (schema 6)
 
 Older compiled builds retained the demo JSON but ignored its optional detailed-coverage section. Migration 6 transactionally recovers TestClassCoverage and TestMethodCoverage from that retained source, without changing org/run identity or requiring re-import. The packaged recovery was verified against an isolated backup of the affected database: clicking an Apex class returned two test classes, and clicking one returned four methods with outcomes and percentages. The live database was not edited by the verification.
+
+## Packaged test shutdown on Windows
+
+Run packaged checks through the Node parent runner, which owns an isolated temporary user-data directory. Electron's will-quit event still has Chromium file handles open on Windows; test scripts must not remove userData from that event. The runner waits for Electron to exit, validates its own temporary path, removes it with bounded retries, and reports cleanup failure through a nonzero exit code. A PASS from the in-app assertions is followed by a separate successful-cleanup message. Intentional invalid-request/unauthorized-request IPC errors remain part of the database checks; uncaught cleanup exceptions and error dialogs are failures.
+
+Coverage UI check (after packaging):
+
+```powershell
+node scripts/run-electron-smoke.cjs coverage "out/Salesforce Apex Test-win32-x64/resources/app.asar/.vite/build/main.cjs" "out/coverage-test/legacy.sqlite"
+```

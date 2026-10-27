@@ -1,12 +1,15 @@
 // Exercises the production bundle through Electron and its actual preload/IPC path.
 const { app, BrowserWindow } = require('electron');
 const assert = require('node:assert/strict');
-const { mkdtempSync, rmSync, existsSync } = require('node:fs');
-const os = require('node:os');
+const { existsSync } = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 
-const directory = mkdtempSync(path.join(os.tmpdir(), 'apex-electron-db-'));
+const directory = process.env.APEX_SMOKE_USER_DATA;
+if (!directory)
+  throw new Error(
+    'Run with node scripts/run-electron-smoke.cjs database so cleanup happens after exit.',
+  );
 app.setPath('userData', directory);
 const timer = setTimeout(() => {
   console.error('Electron database smoke test timed out');
@@ -110,7 +113,6 @@ app.once('browser-window-created', (_event, window) => {
 });
 
 app.on('will-quit', () => {
-  rmSync(directory, { recursive: true, force: true });
   if (!passed) process.exitCode = 1;
 });
 

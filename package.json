@@ -22,7 +22,7 @@
     "dev": "electron-forge start",
     "check": "npm run typecheck && npm run lint && npm test",
     "test": "node --import tsx --test tests/*.test.ts",
-    "test:electron": "electron scripts/smoke-database.cjs"
+    "test:electron": "node scripts/run-electron-smoke.cjs database"
   },
   "devDependencies": {
     "@electron-forge/cli": "^8.0.1",
